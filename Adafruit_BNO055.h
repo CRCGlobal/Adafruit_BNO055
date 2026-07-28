@@ -297,6 +297,8 @@ public:
                       uint8_t *mag);
 
   imu::Vector<3> getVector(adafruit_vector_type_t vector_type);
+  bool getVectorChecked(adafruit_vector_type_t vector_type,
+                        imu::Vector<3> *vector);
   imu::Quaternion getQuat();
   int8_t getTemp();
 

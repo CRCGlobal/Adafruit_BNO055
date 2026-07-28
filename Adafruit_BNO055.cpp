@@ -432,6 +432,31 @@ int8_t Adafruit_BNO055::getTemp() {
  */
 imu::Vector<3> Adafruit_BNO055::getVector(adafruit_vector_type_t vector_type) {
   imu::Vector<3> xyz;
+
+  (void)getVectorChecked(vector_type, &xyz);
+  return xyz;
+}
+
+/*!
+ *  @brief   Gets a vector reading from the specified source
+ *  @param   vector_type
+ *           possible vector type values
+ *           [VECTOR_ACCELEROMETER
+ *            VECTOR_MAGNETOMETER
+ *            VECTOR_GYROSCOPE
+ *            VECTOR_EULER
+ *            VECTOR_LINEARACCEL
+ *            VECTOR_GRAVITY]
+ *  @param   vector
+ *           vector from specified source
+ *  @return  true if the vector read is successful
+ */
+bool Adafruit_BNO055::getVectorChecked(adafruit_vector_type_t vector_type,
+                                       imu::Vector<3> *vector) {
+  if (vector == NULL)
+    return false;
+
+  imu::Vector<3> xyz;
   uint8_t buffer[6];
   memset(buffer, 0, 6);
 
@@ -439,7 +464,8 @@ imu::Vector<3> Adafruit_BNO055::getVector(adafruit_vector_type_t vector_type) {
   x = y = z = 0;
 
   /* Read vector data (6 bytes) */
-  readLen((adafruit_bno055_reg_t)vector_type, buffer, 6);
+  if (!readLen((adafruit_bno055_reg_t)vector_type, buffer, 6))
+    return false;
 
   x = ((int16_t)buffer[0]) | (((int16_t)buffer[1]) << 8);
   y = ((int16_t)buffer[2]) | (((int16_t)buffer[3]) << 8);
@@ -488,7 +514,8 @@ imu::Vector<3> Adafruit_BNO055::getVector(adafruit_vector_type_t vector_type) {
     break;
   }
 
-  return xyz;
+  *vector = xyz;
+  return true;
 }
 
 /*!
