@@ -1,0 +1,10 @@
+# Normalize text files to LF in this fork, even on Windows.
+* text=auto eol=lf
+
+# Keep binary assets untouched.
+*.bmp binary
+*.gif binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.pdf binary
