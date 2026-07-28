@@ -1,3 +1,22 @@
+# CRCGlobal Fork
+
+[![CI](https://github.com/CRCGlobal/Adafruit_BNO055/actions/workflows/githubci.yml/badge.svg?branch=master)](https://github.com/CRCGlobal/Adafruit_BNO055/actions/workflows/githubci.yml)
+[![License](https://img.shields.io/github/license/CRCGlobal/Adafruit_BNO055)](https://github.com/CRCGlobal/Adafruit_BNO055/blob/master/LICENSE)
+[![CRC tag](https://img.shields.io/github/v/tag/CRCGlobal/Adafruit_BNO055?filter=crc-*&label=crc%20tag)](https://github.com/CRCGlobal/Adafruit_BNO055/tags)
+[![Upstream](https://img.shields.io/badge/upstream-adafruit%2FAdafruit__BNO055-blue)](https://github.com/adafruit/Adafruit_BNO055)
+
+This fork is maintained for the CRCGlobal tilt-sensor transmitter project:
+
+- Project: [tilt-sensor-transmitter](https://github.com/CRCGlobal/tilt-sensor-transmitter)
+- Upstream library: [adafruit/Adafruit_BNO055](https://github.com/adafruit/Adafruit_BNO055)
+- Baseline tag before CRCGlobal I2C diagnostics work: `crc-baseline-before-i2c-diagnostics`
+
+The transmitter uses this library to communicate with the BNO055 orientation sensor mounted on the tandem dolly. CRCGlobal keeps this fork so the transmitter firmware can pin a known-good dependency version and, when needed, make targeted diagnostics or reliability changes without depending on upstream timing.
+
+For general BNO055 library documentation, installation instructions, and upstream support information, see the original Adafruit README below.
+
+---
+
 Adafruit Unified BNO055 Driver (AHRS/Orientation)  [![Build Status](https://github.com/adafruit/Adafruit_BNO055/workflows/Arduino%20Library%20CI/badge.svg)](https://github.com/adafruit/Adafruit_BNO055/actions)[![Documentation](https://github.com/adafruit/ci-arduino/blob/master/assets/doxygen_badge.svg)](http://adafruit.github.io/Adafruit_BNO055/html/index.html)
 ================
 
