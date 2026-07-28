@@ -279,6 +279,22 @@ public:
     VECTOR_GRAVITY = BNO055_GRAVITY_DATA_X_LSB_ADDR
   } adafruit_vector_type_t;
 
+  /** I2C operation types used for CRCGlobal diagnostics **/
+  typedef enum {
+    I2C_OPERATION_NONE = 0,
+    I2C_OPERATION_WRITE8,
+    I2C_OPERATION_READ8,
+    I2C_OPERATION_READLEN
+  } adafruit_bno055_i2c_operation_t;
+
+  /** Last failed I2C transaction observed by this driver **/
+  typedef struct {
+    bool failed;
+    adafruit_bno055_i2c_operation_t operation;
+    uint8_t reg;
+    uint8_t length;
+  } adafruit_bno055_i2c_failure_t;
+
   Adafruit_BNO055(int32_t sensorID = -1, uint8_t address = BNO055_ADDRESS_A,
                   TwoWire *theWire = &Wire);
 
@@ -301,6 +317,8 @@ public:
                         imu::Vector<3> *vector);
   imu::Quaternion getQuat();
   int8_t getTemp();
+  adafruit_bno055_i2c_failure_t getLastI2cFailure() const;
+  void clearLastI2cFailure();
 
   /* Adafruit_Sensor implementation */
   bool getEvent(sensors_event_t *);
@@ -319,6 +337,8 @@ public:
   void enterNormalMode();
 
 private:
+  void recordI2cFailure(adafruit_bno055_i2c_operation_t operation,
+                        adafruit_bno055_reg_t reg, uint8_t length);
   bool read8(adafruit_bno055_reg_t, byte *value);
   byte read8(adafruit_bno055_reg_t);
   bool readLen(adafruit_bno055_reg_t, byte *buffer, uint8_t len);
@@ -328,6 +348,8 @@ private:
 
   int32_t _sensorID;
   adafruit_bno055_opmode_t _mode;
+  adafruit_bno055_i2c_failure_t last_i2c_failure = {
+      false, I2C_OPERATION_NONE, 0, 0};
 };
 
 #endif

@@ -900,11 +900,46 @@ void Adafruit_BNO055::enterNormalMode() {
 }
 
 /*!
+ *  @brief  Gets the last failed I2C transaction observed by this driver
+ */
+Adafruit_BNO055::adafruit_bno055_i2c_failure_t
+Adafruit_BNO055::getLastI2cFailure() const {
+  return last_i2c_failure;
+}
+
+/*!
+ *  @brief  Clears the last failed I2C transaction recorded by this driver
+ */
+void Adafruit_BNO055::clearLastI2cFailure() {
+  last_i2c_failure.failed = false;
+  last_i2c_failure.operation = I2C_OPERATION_NONE;
+  last_i2c_failure.reg = 0;
+  last_i2c_failure.length = 0;
+}
+
+/*!
+ *  @brief  Records the failed I2C transaction context
+ */
+void Adafruit_BNO055::recordI2cFailure(
+    adafruit_bno055_i2c_operation_t operation, adafruit_bno055_reg_t reg,
+    uint8_t length) {
+  last_i2c_failure.failed = true;
+  last_i2c_failure.operation = operation;
+  last_i2c_failure.reg = (uint8_t)reg;
+  last_i2c_failure.length = length;
+}
+
+/*!
  *  @brief  Writes an 8 bit value over I2C
  */
 bool Adafruit_BNO055::write8(adafruit_bno055_reg_t reg, byte value) {
   uint8_t buffer[2] = {(uint8_t)reg, (uint8_t)value};
-  return i2c_dev->write(buffer, 2);
+  bool success = i2c_dev->write(buffer, 2);
+
+  if (!success)
+    recordI2cFailure(I2C_OPERATION_WRITE8, reg, 1);
+
+  return success;
 }
 
 /*!
@@ -919,6 +954,8 @@ bool Adafruit_BNO055::read8(adafruit_bno055_reg_t reg, byte *value) {
 
   if (success)
     *value = (byte)buffer[0];
+  else
+    recordI2cFailure(I2C_OPERATION_READ8, reg, 1);
 
   return success;
 }
@@ -938,5 +975,10 @@ byte Adafruit_BNO055::read8(adafruit_bno055_reg_t reg) {
 bool Adafruit_BNO055::readLen(adafruit_bno055_reg_t reg, byte *buffer,
                               uint8_t len) {
   uint8_t reg_buf[1] = {(uint8_t)reg};
-  return i2c_dev->write_then_read(reg_buf, 1, buffer, len);
+  bool success = i2c_dev->write_then_read(reg_buf, 1, buffer, len);
+
+  if (!success)
+    recordI2cFailure(I2C_OPERATION_READLEN, reg, len);
+
+  return success;
 }
