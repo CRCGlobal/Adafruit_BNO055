@@ -915,6 +915,28 @@ void Adafruit_BNO055::clearLastI2cFailure() {
   last_i2c_failure.operation = I2C_OPERATION_NONE;
   last_i2c_failure.reg = 0;
   last_i2c_failure.length = 0;
+  last_i2c_failure.transactionMicros = 0;
+}
+
+/*!
+ *  @brief  Gets I2C transaction diagnostics observed by this driver
+ */
+Adafruit_BNO055::adafruit_bno055_i2c_diagnostics_t
+Adafruit_BNO055::getI2cDiagnostics() const {
+  return i2c_diagnostics;
+}
+
+/*!
+ *  @brief  Clears I2C transaction diagnostics observed by this driver
+ */
+void Adafruit_BNO055::clearI2cDiagnostics() {
+  i2c_diagnostics.readFailures = 0;
+  i2c_diagnostics.writeFailures = 0;
+  i2c_diagnostics.consecutiveFailures = 0;
+  i2c_diagnostics.maxConsecutiveFailures = 0;
+  i2c_diagnostics.recoveredTransactions = 0;
+  i2c_diagnostics.slowTransactions = 0;
+  i2c_diagnostics.maxTransactionMicros = 0;
 }
 
 /*!
@@ -922,11 +944,49 @@ void Adafruit_BNO055::clearLastI2cFailure() {
  */
 void Adafruit_BNO055::recordI2cFailure(
     adafruit_bno055_i2c_operation_t operation, adafruit_bno055_reg_t reg,
-    uint8_t length) {
+    uint8_t length, uint32_t transactionMicros) {
   last_i2c_failure.failed = true;
   last_i2c_failure.operation = operation;
   last_i2c_failure.reg = (uint8_t)reg;
   last_i2c_failure.length = length;
+  last_i2c_failure.transactionMicros = transactionMicros;
+}
+
+/*!
+ *  @brief  Records I2C transaction timing and success/failure counts
+ */
+void Adafruit_BNO055::recordI2cTransaction(
+    adafruit_bno055_i2c_operation_t operation, adafruit_bno055_reg_t reg,
+    uint8_t length, bool success, uint32_t transactionMicros) {
+  static const uint32_t BNO055_SLOW_I2C_TRANSACTION_MICROS = 10000;
+
+  if (transactionMicros > i2c_diagnostics.maxTransactionMicros)
+    i2c_diagnostics.maxTransactionMicros = transactionMicros;
+
+  if (transactionMicros > BNO055_SLOW_I2C_TRANSACTION_MICROS)
+    i2c_diagnostics.slowTransactions++;
+
+  if (success) {
+    if (i2c_diagnostics.consecutiveFailures > 0)
+      i2c_diagnostics.recoveredTransactions++;
+
+    i2c_diagnostics.consecutiveFailures = 0;
+    return;
+  }
+
+  if (operation == I2C_OPERATION_WRITE8)
+    i2c_diagnostics.writeFailures++;
+  else
+    i2c_diagnostics.readFailures++;
+
+  i2c_diagnostics.consecutiveFailures++;
+
+  if (i2c_diagnostics.consecutiveFailures >
+      i2c_diagnostics.maxConsecutiveFailures)
+    i2c_diagnostics.maxConsecutiveFailures =
+        i2c_diagnostics.consecutiveFailures;
+
+  recordI2cFailure(operation, reg, length, transactionMicros);
 }
 
 /*!
@@ -934,10 +994,12 @@ void Adafruit_BNO055::recordI2cFailure(
  */
 bool Adafruit_BNO055::write8(adafruit_bno055_reg_t reg, byte value) {
   uint8_t buffer[2] = {(uint8_t)reg, (uint8_t)value};
+  uint32_t startMicros = micros();
   bool success = i2c_dev->write(buffer, 2);
+  uint32_t transactionMicros = micros() - startMicros;
 
-  if (!success)
-    recordI2cFailure(I2C_OPERATION_WRITE8, reg, 1);
+  recordI2cTransaction(I2C_OPERATION_WRITE8, reg, 1, success,
+                       transactionMicros);
 
   return success;
 }
@@ -950,12 +1012,15 @@ bool Adafruit_BNO055::read8(adafruit_bno055_reg_t reg, byte *value) {
     return false;
 
   uint8_t buffer[1] = {reg};
+  uint32_t startMicros = micros();
   bool success = i2c_dev->write_then_read(buffer, 1, buffer, 1);
+  uint32_t transactionMicros = micros() - startMicros;
 
   if (success)
     *value = (byte)buffer[0];
-  else
-    recordI2cFailure(I2C_OPERATION_READ8, reg, 1);
+
+  recordI2cTransaction(I2C_OPERATION_READ8, reg, 1, success,
+                       transactionMicros);
 
   return success;
 }
@@ -975,10 +1040,12 @@ byte Adafruit_BNO055::read8(adafruit_bno055_reg_t reg) {
 bool Adafruit_BNO055::readLen(adafruit_bno055_reg_t reg, byte *buffer,
                               uint8_t len) {
   uint8_t reg_buf[1] = {(uint8_t)reg};
+  uint32_t startMicros = micros();
   bool success = i2c_dev->write_then_read(reg_buf, 1, buffer, len);
+  uint32_t transactionMicros = micros() - startMicros;
 
-  if (!success)
-    recordI2cFailure(I2C_OPERATION_READLEN, reg, len);
+  recordI2cTransaction(I2C_OPERATION_READLEN, reg, len, success,
+                       transactionMicros);
 
   return success;
 }

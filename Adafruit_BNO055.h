@@ -293,7 +293,19 @@ public:
     adafruit_bno055_i2c_operation_t operation;
     uint8_t reg;
     uint8_t length;
+    uint32_t transactionMicros;
   } adafruit_bno055_i2c_failure_t;
+
+  /** I2C transaction counters used for CRCGlobal diagnostics **/
+  typedef struct {
+    uint32_t readFailures;
+    uint32_t writeFailures;
+    uint32_t consecutiveFailures;
+    uint32_t maxConsecutiveFailures;
+    uint32_t recoveredTransactions;
+    uint32_t slowTransactions;
+    uint32_t maxTransactionMicros;
+  } adafruit_bno055_i2c_diagnostics_t;
 
   Adafruit_BNO055(int32_t sensorID = -1, uint8_t address = BNO055_ADDRESS_A,
                   TwoWire *theWire = &Wire);
@@ -319,6 +331,8 @@ public:
   int8_t getTemp();
   adafruit_bno055_i2c_failure_t getLastI2cFailure() const;
   void clearLastI2cFailure();
+  adafruit_bno055_i2c_diagnostics_t getI2cDiagnostics() const;
+  void clearI2cDiagnostics();
 
   /* Adafruit_Sensor implementation */
   bool getEvent(sensors_event_t *);
@@ -338,7 +352,11 @@ public:
 
 private:
   void recordI2cFailure(adafruit_bno055_i2c_operation_t operation,
-                        adafruit_bno055_reg_t reg, uint8_t length);
+                        adafruit_bno055_reg_t reg, uint8_t length,
+                        uint32_t transactionMicros);
+  void recordI2cTransaction(adafruit_bno055_i2c_operation_t operation,
+                            adafruit_bno055_reg_t reg, uint8_t length,
+                            bool success, uint32_t transactionMicros);
   bool read8(adafruit_bno055_reg_t, byte *value);
   byte read8(adafruit_bno055_reg_t);
   bool readLen(adafruit_bno055_reg_t, byte *buffer, uint8_t len);
@@ -349,7 +367,8 @@ private:
   int32_t _sensorID;
   adafruit_bno055_opmode_t _mode;
   adafruit_bno055_i2c_failure_t last_i2c_failure = {
-      false, I2C_OPERATION_NONE, 0, 0};
+      false, I2C_OPERATION_NONE, 0, 0, 0};
+  adafruit_bno055_i2c_diagnostics_t i2c_diagnostics = {0, 0, 0, 0, 0, 0, 0};
 };
 
 #endif
