@@ -269,6 +269,22 @@ void Adafruit_BNO055::setExtCrystalUse(boolean usextal) {
 void Adafruit_BNO055::getSystemStatus(uint8_t *system_status,
                                       uint8_t *self_test_result,
                                       uint8_t *system_error) {
+  (void)getSystemStatusChecked(system_status, self_test_result, system_error);
+}
+
+/*!
+ *   @brief  Gets the latest system status info
+ *   @param  system_status
+ *           system status info
+ *   @param  self_test_result
+ *           self test result
+ *   @param  system_error
+ *           system error info
+ *   @return true if all requested status reads are successful
+ */
+bool Adafruit_BNO055::getSystemStatusChecked(uint8_t *system_status,
+                                             uint8_t *self_test_result,
+                                             uint8_t *system_error) {
   write8(BNO055_PAGE_ID_ADDR, 0);
 
   /* System Status (see section 4.3.58)
@@ -281,8 +297,13 @@ void Adafruit_BNO055::getSystemStatus(uint8_t *system_status,
      6 = System running without fusion algorithms
    */
 
+  byte systemStatusValue = 0;
+  byte selfTestResultValue = 0;
+  byte systemErrorValue = 0;
+  bool success = true;
+
   if (system_status != 0)
-    *system_status = read8(BNO055_SYS_STAT_ADDR);
+    success = read8(BNO055_SYS_STAT_ADDR, &systemStatusValue) && success;
 
   /* Self Test Results
      1 = test passed, 0 = test failed
@@ -296,7 +317,8 @@ void Adafruit_BNO055::getSystemStatus(uint8_t *system_status,
    */
 
   if (self_test_result != 0)
-    *self_test_result = read8(BNO055_SELFTEST_RESULT_ADDR);
+    success =
+        read8(BNO055_SELFTEST_RESULT_ADDR, &selfTestResultValue) && success;
 
   /* System Error (see section 4.3.59)
      0 = No error
@@ -313,9 +335,19 @@ void Adafruit_BNO055::getSystemStatus(uint8_t *system_status,
    */
 
   if (system_error != 0)
-    *system_error = read8(BNO055_SYS_ERR_ADDR);
+    success = read8(BNO055_SYS_ERR_ADDR, &systemErrorValue) && success;
+
+  if (success) {
+    if (system_status != 0)
+      *system_status = systemStatusValue;
+    if (self_test_result != 0)
+      *self_test_result = selfTestResultValue;
+    if (system_error != 0)
+      *system_error = systemErrorValue;
+  }
 
   delay(200);
+  return success;
 }
 
 /*!
@@ -851,10 +883,26 @@ bool Adafruit_BNO055::write8(adafruit_bno055_reg_t reg, byte value) {
 /*!
  *  @brief  Reads an 8 bit value over I2C
  */
-byte Adafruit_BNO055::read8(adafruit_bno055_reg_t reg) {
+bool Adafruit_BNO055::read8(adafruit_bno055_reg_t reg, byte *value) {
+  if (value == NULL)
+    return false;
+
   uint8_t buffer[1] = {reg};
-  i2c_dev->write_then_read(buffer, 1, buffer, 1);
-  return (byte)buffer[0];
+  bool success = i2c_dev->write_then_read(buffer, 1, buffer, 1);
+
+  if (success)
+    *value = (byte)buffer[0];
+
+  return success;
+}
+
+/*!
+ *  @brief  Reads an 8 bit value over I2C
+ */
+byte Adafruit_BNO055::read8(adafruit_bno055_reg_t reg) {
+  byte value = 0;
+  (void)read8(reg, &value);
+  return value;
 }
 
 /*!

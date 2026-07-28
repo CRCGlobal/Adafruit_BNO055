@@ -291,6 +291,8 @@ public:
   void setExtCrystalUse(boolean usextal);
   void getSystemStatus(uint8_t *system_status, uint8_t *self_test_result,
                        uint8_t *system_error);
+  bool getSystemStatusChecked(uint8_t *system_status, uint8_t *self_test_result,
+                              uint8_t *system_error);
   void getCalibration(uint8_t *system, uint8_t *gyro, uint8_t *accel,
                       uint8_t *mag);
 
@@ -315,6 +317,7 @@ public:
   void enterNormalMode();
 
 private:
+  bool read8(adafruit_bno055_reg_t, byte *value);
   byte read8(adafruit_bno055_reg_t);
   bool readLen(adafruit_bno055_reg_t, byte *buffer, uint8_t len);
   bool write8(adafruit_bno055_reg_t, byte value);
