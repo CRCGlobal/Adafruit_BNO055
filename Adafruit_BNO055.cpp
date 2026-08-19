@@ -410,6 +410,34 @@ void Adafruit_BNO055::getCalibration(uint8_t *sys, uint8_t *gyro,
 }
 
 /*!
+ *  @brief  Gets the current calibration state and reports whether the I2C
+ *          register read succeeded.
+ *  @return true when the calibration register was read successfully
+ */
+bool Adafruit_BNO055::getCalibrationChecked(uint8_t *sys, uint8_t *gyro,
+                                            uint8_t *accel, uint8_t *mag) {
+  uint8_t calData = 0;
+  if (!read8(BNO055_CALIB_STAT_ADDR, &calData)) {
+    return false;
+  }
+
+  if (sys != NULL) {
+    *sys = (calData >> 6) & 0x03;
+  }
+  if (gyro != NULL) {
+    *gyro = (calData >> 4) & 0x03;
+  }
+  if (accel != NULL) {
+    *accel = (calData >> 2) & 0x03;
+  }
+  if (mag != NULL) {
+    *mag = calData & 0x03;
+  }
+
+  return true;
+}
+
+/*!
  *  @brief  Gets the temperature in degrees celsius
  *  @return temperature in degrees celsius
  */

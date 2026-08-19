@@ -323,6 +323,8 @@ public:
                               uint8_t *system_error);
   void getCalibration(uint8_t *system, uint8_t *gyro, uint8_t *accel,
                       uint8_t *mag);
+  bool getCalibrationChecked(uint8_t *system, uint8_t *gyro, uint8_t *accel,
+                             uint8_t *mag);
 
   imu::Vector<3> getVector(adafruit_vector_type_t vector_type);
   bool getVectorChecked(adafruit_vector_type_t vector_type,
