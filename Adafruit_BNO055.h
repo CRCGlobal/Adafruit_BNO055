@@ -321,7 +321,15 @@ public:
 
   Adafruit_BNO055(int32_t sensorID = -1, uint8_t address = BNO055_ADDRESS_A,
                   TwoWire *theWire = &Wire);
-
+  /**
+   * @brief Initializes the BNO055 sensor.
+   *
+   * @param mode Operating mode to enable after initialization.
+   * @param resetTimeoutMs Maximum time, in milliseconds, to wait for the
+   *        BNO055 to respond after a software reset.
+   * @return true if initialization succeeds; false if the sensor is not
+   *         detected or does not respond before the reset timeout.
+   */
   bool begin(adafruit_bno055_opmode_t mode = OPERATION_MODE_NDOF, uint32_t resetTimeoutMs = 2000U);
   void setMode(adafruit_bno055_opmode_t mode);
   adafruit_bno055_opmode_t getMode();
