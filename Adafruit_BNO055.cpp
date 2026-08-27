@@ -74,55 +74,88 @@ Adafruit_BNO055::Adafruit_BNO055(int32_t sensorID, uint8_t address,
  *            OPERATION_MODE_NDOF]
  *  @return true if process is successful
  */
-bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode, uint32_t resetTimeoutMs)
+bool Adafruit_BNO055::begin(
+    adafruit_bno055_opmode_t mode,
+    uint32_t resetTimeoutMs)
 {
-  // Start without a detection
+  // Start without a detection.
   i2c_dev->begin(false);
 
 #if defined(TARGET_RP2040)
-  // philhower core seems to work with this speed?
+  // Philhower core seems to work with this speed.
   i2c_dev->setSpeed(50000);
 #endif
 
-  // can take 850 ms to boot!
-  int timeout = 850; // in ms
+  // The BNO055 can take up to 850 ms to boot.
+  int timeout = 850;
+
   while (timeout > 0)
   {
     if (i2c_dev->begin())
     {
       break;
     }
-    // wasnt detected... we'll retry!
+
     delay(10);
     timeout -= 10;
   }
-  if (timeout <= 0)
-    return false;
 
-  /* Make sure we have the right device */
-  uint8_t id = read8(BNO055_CHIP_ID_ADDR);
+  if (timeout <= 0)
+  {
+    return false;
+  }
+
+  uint8_t id = 0;
+
+  // Make sure this is a BNO055.
+  if (!read8(BNO055_CHIP_ID_ADDR, &id))
+  {
+    return false;
+  }
+
   if (id != BNO055_ID)
   {
-    delay(1000); // hold on for boot
-    id = read8(BNO055_CHIP_ID_ADDR);
+    delay(1000);
+
+    if (!read8(BNO055_CHIP_ID_ADDR, &id))
+    {
+      return false;
+    }
+
     if (id != BNO055_ID)
     {
-      return false; // still not? ok bail
+      return false;
     }
   }
 
-  /* Switch to config mode (just in case since this is the default) */
-  setMode(OPERATION_MODE_CONFIG);
+  // Enter configuration mode before resetting/configuring the device.
+  if (!setModeChecked(OPERATION_MODE_CONFIG))
+  {
+    return false;
+  }
 
-  /* Reset */
-  write8(BNO055_SYS_TRIGGER_ADDR, 0x20);
-  /* Delay increased to 30ms due to power issues https://tinyurl.com/y375z699 */
+  // Reset the BNO055.
+  if (!write8(BNO055_SYS_TRIGGER_ADDR, 0x20))
+  {
+    return false;
+  }
+
   delay(30);
 
   const unsigned long resetStartedAt = millis();
 
-  while (read8(BNO055_CHIP_ID_ADDR) != BNO055_ID)
+  while (true)
   {
+    if (!read8(BNO055_CHIP_ID_ADDR, &id))
+    {
+      return false;
+    }
+
+    if (id == BNO055_ID)
+    {
+      break;
+    }
+
     if (millis() - resetStartedAt >= resetTimeoutMs)
     {
       return false;
@@ -133,35 +166,95 @@ bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode, uint32_t resetTimeout
 
   delay(50);
 
-  /* Set to normal power mode */
-  write8(BNO055_PWR_MODE_ADDR, POWER_MODE_NORMAL);
+  // Set normal power mode.
+  if (!write8(BNO055_PWR_MODE_ADDR, POWER_MODE_NORMAL))
+  {
+    return false;
+  }
+
   delay(10);
 
-  write8(BNO055_PAGE_ID_ADDR, 0);
+  // Select register page zero.
+  if (!write8(BNO055_PAGE_ID_ADDR, 0))
+  {
+    return false;
+  }
 
-  /* Set the output units */
   /*
   uint8_t unitsel = (0 << 7) | // Orientation = Android
                     (0 << 4) | // Temperature = Celsius
                     (0 << 2) | // Euler = Degrees
-                    (1 << 1) | // Gyro = Rads
+                    (1 << 1) | // Gyro = Radians
                     (0 << 0);  // Accelerometer = m/s^2
-  write8(BNO055_UNIT_SEL_ADDR, unitsel);
+
+  if (!write8(BNO055_UNIT_SEL_ADDR, unitsel))
+  {
+    return false;
+  }
   */
 
-  /* Configure axis mapping (see section 3.4) */
   /*
-  write8(BNO055_AXIS_MAP_CONFIG_ADDR, REMAP_CONFIG_P2); // P0-P7, Default is P1
+  if (!write8(BNO055_AXIS_MAP_CONFIG_ADDR, REMAP_CONFIG_P2))
+  {
+    return false;
+  }
+
   delay(10);
-  write8(BNO055_AXIS_MAP_SIGN_ADDR, REMAP_SIGN_P2); // P0-P7, Default is P1
+
+  if (!write8(BNO055_AXIS_MAP_SIGN_ADDR, REMAP_SIGN_P2))
+  {
+    return false;
+  }
+
   delay(10);
   */
 
-  write8(BNO055_SYS_TRIGGER_ADDR, 0x0);
+  // Clear the reset trigger.
+  if (!write8(BNO055_SYS_TRIGGER_ADDR, 0x00))
+  {
+    return false;
+  }
+
   delay(10);
-  /* Set the requested operating mode (see section 3.3) */
-  setMode(mode);
+
+  // Enable the requested fusion mode.
+  if (!setModeChecked(mode))
+  {
+    return false;
+  }
+
   delay(20);
+
+  return true;
+}
+
+/*!
+ *  @brief  Puts the chip in the specified operating mode
+ *  @param  mode
+ *          mode values
+ *           [OPERATION_MODE_CONFIG,
+ *            OPERATION_MODE_ACCONLY,
+ *            OPERATION_MODE_MAGONLY,
+ *            OPERATION_MODE_GYRONLY,
+ *            OPERATION_MODE_ACCMAG,
+ *            OPERATION_MODE_ACCGYRO,
+ *            OPERATION_MODE_MAGGYRO,
+ *            OPERATION_MODE_AMG,
+ *            OPERATION_MODE_IMUPLUS,
+ *            OPERATION_MODE_COMPASS,
+ *            OPERATION_MODE_M4G,
+ *            OPERATION_MODE_NDOF_FMC_OFF,
+ *            OPERATION_MODE_NDOF]
+ */
+bool Adafruit_BNO055::setModeChecked(adafruit_bno055_opmode_t mode)
+{
+  if (!write8(BNO055_OPR_MODE_ADDR, mode))
+  {
+    return false;
+  }
+
+  _mode = mode;
+  delay(30);
 
   return true;
 }
@@ -186,9 +279,7 @@ bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode, uint32_t resetTimeout
  */
 void Adafruit_BNO055::setMode(adafruit_bno055_opmode_t mode)
 {
-  _mode = mode;
-  write8(BNO055_OPR_MODE_ADDR, _mode);
-  delay(30);
+  (void)setModeChecked(mode);
 }
 
 /*!
@@ -259,26 +350,48 @@ void Adafruit_BNO055::setAxisSign(adafruit_bno055_axis_remap_sign_t remapsign)
  *  @param  usextal
  *          use external crystal boolean
  */
+bool Adafruit_BNO055::setExtCrystalUseChecked(boolean usextal)
+{
+  const adafruit_bno055_opmode_t modeback = _mode;
+
+  if (!setModeChecked(OPERATION_MODE_CONFIG))
+  {
+    return false;
+  }
+
+  delay(25);
+
+  bool succeeded = write8(BNO055_PAGE_ID_ADDR, 0);
+
+  if (succeeded)
+  {
+    const byte triggerValue = usextal ? 0x80 : 0x00;
+    succeeded = write8(BNO055_SYS_TRIGGER_ADDR, triggerValue);
+  }
+
+  if (succeeded)
+  {
+    delay(10);
+  }
+
+  const bool modeRestored = setModeChecked(modeback);
+
+  if (modeRestored)
+  {
+    delay(20);
+  }
+
+  return succeeded && modeRestored;
+}
+
+/*!
+ *  @brief  Use the external 32.768KHz crystal
+ *  @param  usextal
+ *          use external crystal boolean
+ */
 void Adafruit_BNO055::setExtCrystalUse(boolean usextal)
 {
-  adafruit_bno055_opmode_t modeback = _mode;
-
-  /* Switch to config mode (just in case since this is the default) */
-  setMode(OPERATION_MODE_CONFIG);
-  delay(25);
-  write8(BNO055_PAGE_ID_ADDR, 0);
-  if (usextal)
-  {
-    write8(BNO055_SYS_TRIGGER_ADDR, 0x80);
-  }
-  else
-  {
-    write8(BNO055_SYS_TRIGGER_ADDR, 0x00);
-  }
-  delay(10);
-  /* Set the requested operating mode (see section 3.3) */
-  setMode(modeback);
-  delay(20);
+  (void)setExtCrystalUseChecked(usextal);
 }
 
 /*!
@@ -307,11 +420,9 @@ void Adafruit_BNO055::getSystemStatus(uint8_t *system_status,
  *           system error info
  *   @return true if all requested status reads are successful
  */
-bool Adafruit_BNO055::getSystemStatusChecked(uint8_t *system_status,
-                                             uint8_t *self_test_result,
-                                             uint8_t *system_error)
+bool Adafruit_BNO055::getSystemStatusChecked(uint8_t *system_status, uint8_t *self_test_result, uint8_t *system_error)
 {
-  write8(BNO055_PAGE_ID_ADDR, 0);
+  bool success = write8(BNO055_PAGE_ID_ADDR, 0);
 
   /* System Status (see section 4.3.58)
      0 = Idle
@@ -326,7 +437,6 @@ bool Adafruit_BNO055::getSystemStatusChecked(uint8_t *system_status,
   byte systemStatusValue = 0;
   byte selfTestResultValue = 0;
   byte systemErrorValue = 0;
-  bool success = true;
 
   if (system_status != 0)
     success = read8(BNO055_SYS_STAT_ADDR, &systemStatusValue) && success;
@@ -752,17 +862,33 @@ bool Adafruit_BNO055::getEvent(sensors_event_t *event,
  */
 bool Adafruit_BNO055::getSensorOffsets(uint8_t *calibData)
 {
-  if (isFullyCalibrated())
+  if (calibData == NULL)
   {
-    adafruit_bno055_opmode_t lastMode = _mode;
-    setMode(OPERATION_MODE_CONFIG);
-
-    readLen(ACCEL_OFFSET_X_LSB_ADDR, calibData, NUM_BNO055_OFFSET_REGISTERS);
-
-    setMode(lastMode);
-    return true;
+    return false;
   }
-  return false;
+
+  if (!isFullyCalibrated())
+  {
+    return false;
+  }
+
+  const adafruit_bno055_opmode_t lastMode = _mode;
+
+  if (!setModeChecked(OPERATION_MODE_CONFIG))
+  {
+    return false;
+  }
+
+  delay(25);
+
+  const bool offsetsRead = readLen(
+      ACCEL_OFFSET_X_LSB_ADDR,
+      calibData,
+      NUM_BNO055_OFFSET_REGISTERS);
+
+  const bool modeRestored = setModeChecked(lastMode);
+
+  return offsetsRead && modeRestored;
 }
 
 /*!
@@ -774,58 +900,111 @@ bool Adafruit_BNO055::getSensorOffsets(uint8_t *calibData)
 bool Adafruit_BNO055::getSensorOffsets(
     adafruit_bno055_offsets_t &offsets_type)
 {
-  if (isFullyCalibrated())
+  uint8_t calibrationData[NUM_BNO055_OFFSET_REGISTERS] = {};
+
+  if (!getSensorOffsets(calibrationData))
   {
-    adafruit_bno055_opmode_t lastMode = _mode;
-    setMode(OPERATION_MODE_CONFIG);
-    delay(25);
-
-    /* Accel offset range depends on the G-range:
-       +/-2g  = +/- 2000 mg
-       +/-4g  = +/- 4000 mg
-       +/-8g  = +/- 8000 mg
-       +/-1§g = +/- 16000 mg */
-    offsets_type.accel_offset_x = (read8(ACCEL_OFFSET_X_MSB_ADDR) << 8) |
-                                  (read8(ACCEL_OFFSET_X_LSB_ADDR));
-    offsets_type.accel_offset_y = (read8(ACCEL_OFFSET_Y_MSB_ADDR) << 8) |
-                                  (read8(ACCEL_OFFSET_Y_LSB_ADDR));
-    offsets_type.accel_offset_z = (read8(ACCEL_OFFSET_Z_MSB_ADDR) << 8) |
-                                  (read8(ACCEL_OFFSET_Z_LSB_ADDR));
-
-    /* Magnetometer offset range = +/- 6400 LSB where 1uT = 16 LSB */
-    offsets_type.mag_offset_x =
-        (read8(MAG_OFFSET_X_MSB_ADDR) << 8) | (read8(MAG_OFFSET_X_LSB_ADDR));
-    offsets_type.mag_offset_y =
-        (read8(MAG_OFFSET_Y_MSB_ADDR) << 8) | (read8(MAG_OFFSET_Y_LSB_ADDR));
-    offsets_type.mag_offset_z =
-        (read8(MAG_OFFSET_Z_MSB_ADDR) << 8) | (read8(MAG_OFFSET_Z_LSB_ADDR));
-
-    /* Gyro offset range depends on the DPS range:
-      2000 dps = +/- 32000 LSB
-      1000 dps = +/- 16000 LSB
-       500 dps = +/- 8000 LSB
-       250 dps = +/- 4000 LSB
-       125 dps = +/- 2000 LSB
-       ... where 1 DPS = 16 LSB */
-    offsets_type.gyro_offset_x =
-        (read8(GYRO_OFFSET_X_MSB_ADDR) << 8) | (read8(GYRO_OFFSET_X_LSB_ADDR));
-    offsets_type.gyro_offset_y =
-        (read8(GYRO_OFFSET_Y_MSB_ADDR) << 8) | (read8(GYRO_OFFSET_Y_LSB_ADDR));
-    offsets_type.gyro_offset_z =
-        (read8(GYRO_OFFSET_Z_MSB_ADDR) << 8) | (read8(GYRO_OFFSET_Z_LSB_ADDR));
-
-    /* Accelerometer radius = +/- 1000 LSB */
-    offsets_type.accel_radius =
-        (read8(ACCEL_RADIUS_MSB_ADDR) << 8) | (read8(ACCEL_RADIUS_LSB_ADDR));
-
-    /* Magnetometer radius = +/- 960 LSB */
-    offsets_type.mag_radius =
-        (read8(MAG_RADIUS_MSB_ADDR) << 8) | (read8(MAG_RADIUS_LSB_ADDR));
-
-    setMode(lastMode);
-    return true;
+    return false;
   }
-  return false;
+
+  offsets_type.accel_offset_x = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[1]) << 8) |
+      static_cast<uint16_t>(calibrationData[0]));
+
+  offsets_type.accel_offset_y = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[3]) << 8) |
+      static_cast<uint16_t>(calibrationData[2]));
+
+  offsets_type.accel_offset_z = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[5]) << 8) |
+      static_cast<uint16_t>(calibrationData[4]));
+
+  offsets_type.mag_offset_x = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[7]) << 8) |
+      static_cast<uint16_t>(calibrationData[6]));
+
+  offsets_type.mag_offset_y = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[9]) << 8) |
+      static_cast<uint16_t>(calibrationData[8]));
+
+  offsets_type.mag_offset_z = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[11]) << 8) |
+      static_cast<uint16_t>(calibrationData[10]));
+
+  offsets_type.gyro_offset_x = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[13]) << 8) |
+      static_cast<uint16_t>(calibrationData[12]));
+
+  offsets_type.gyro_offset_y = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[15]) << 8) |
+      static_cast<uint16_t>(calibrationData[14]));
+
+  offsets_type.gyro_offset_z = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[17]) << 8) |
+      static_cast<uint16_t>(calibrationData[16]));
+
+  offsets_type.accel_radius = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[19]) << 8) |
+      static_cast<uint16_t>(calibrationData[18]));
+
+  offsets_type.mag_radius = static_cast<int16_t>(
+      (static_cast<uint16_t>(calibrationData[21]) << 8) |
+      static_cast<uint16_t>(calibrationData[20]));
+
+  return true;
+}
+
+/*!
+ *  @brief  Writes an array of calibration values to the sensor's offset
+ *  @param  calibData
+ *          calibration data
+ */
+bool Adafruit_BNO055::setSensorOffsetsChecked(const uint8_t *calibData)
+{
+  if (calibData == NULL)
+  {
+    return false;
+  }
+
+  const adafruit_bno055_opmode_t lastMode = _mode;
+
+  if (!setModeChecked(OPERATION_MODE_CONFIG))
+  {
+    return false;
+  }
+
+  delay(25);
+
+  const bool writesSucceeded =
+      write8(ACCEL_OFFSET_X_LSB_ADDR, calibData[0]) &&
+      write8(ACCEL_OFFSET_X_MSB_ADDR, calibData[1]) &&
+      write8(ACCEL_OFFSET_Y_LSB_ADDR, calibData[2]) &&
+      write8(ACCEL_OFFSET_Y_MSB_ADDR, calibData[3]) &&
+      write8(ACCEL_OFFSET_Z_LSB_ADDR, calibData[4]) &&
+      write8(ACCEL_OFFSET_Z_MSB_ADDR, calibData[5]) &&
+
+      write8(MAG_OFFSET_X_LSB_ADDR, calibData[6]) &&
+      write8(MAG_OFFSET_X_MSB_ADDR, calibData[7]) &&
+      write8(MAG_OFFSET_Y_LSB_ADDR, calibData[8]) &&
+      write8(MAG_OFFSET_Y_MSB_ADDR, calibData[9]) &&
+      write8(MAG_OFFSET_Z_LSB_ADDR, calibData[10]) &&
+      write8(MAG_OFFSET_Z_MSB_ADDR, calibData[11]) &&
+
+      write8(GYRO_OFFSET_X_LSB_ADDR, calibData[12]) &&
+      write8(GYRO_OFFSET_X_MSB_ADDR, calibData[13]) &&
+      write8(GYRO_OFFSET_Y_LSB_ADDR, calibData[14]) &&
+      write8(GYRO_OFFSET_Y_MSB_ADDR, calibData[15]) &&
+      write8(GYRO_OFFSET_Z_LSB_ADDR, calibData[16]) &&
+      write8(GYRO_OFFSET_Z_MSB_ADDR, calibData[17]) &&
+
+      write8(ACCEL_RADIUS_LSB_ADDR, calibData[18]) &&
+      write8(ACCEL_RADIUS_MSB_ADDR, calibData[19]) &&
+      write8(MAG_RADIUS_LSB_ADDR, calibData[20]) &&
+      write8(MAG_RADIUS_MSB_ADDR, calibData[21]);
+
+  const bool modeRestored = setModeChecked(lastMode);
+
+  return writesSucceeded && modeRestored;
 }
 
 /*!
@@ -835,44 +1014,7 @@ bool Adafruit_BNO055::getSensorOffsets(
  */
 void Adafruit_BNO055::setSensorOffsets(const uint8_t *calibData)
 {
-  adafruit_bno055_opmode_t lastMode = _mode;
-  setMode(OPERATION_MODE_CONFIG);
-  delay(25);
-
-  /* Note: Configuration will take place only when user writes to the last
-     byte of each config data pair (ex. ACCEL_OFFSET_Z_MSB_ADDR, etc.).
-     Therefore the last byte must be written whenever the user wants to
-     changes the configuration. */
-
-  /* A writeLen() would make this much cleaner */
-  write8(ACCEL_OFFSET_X_LSB_ADDR, calibData[0]);
-  write8(ACCEL_OFFSET_X_MSB_ADDR, calibData[1]);
-  write8(ACCEL_OFFSET_Y_LSB_ADDR, calibData[2]);
-  write8(ACCEL_OFFSET_Y_MSB_ADDR, calibData[3]);
-  write8(ACCEL_OFFSET_Z_LSB_ADDR, calibData[4]);
-  write8(ACCEL_OFFSET_Z_MSB_ADDR, calibData[5]);
-
-  write8(MAG_OFFSET_X_LSB_ADDR, calibData[6]);
-  write8(MAG_OFFSET_X_MSB_ADDR, calibData[7]);
-  write8(MAG_OFFSET_Y_LSB_ADDR, calibData[8]);
-  write8(MAG_OFFSET_Y_MSB_ADDR, calibData[9]);
-  write8(MAG_OFFSET_Z_LSB_ADDR, calibData[10]);
-  write8(MAG_OFFSET_Z_MSB_ADDR, calibData[11]);
-
-  write8(GYRO_OFFSET_X_LSB_ADDR, calibData[12]);
-  write8(GYRO_OFFSET_X_MSB_ADDR, calibData[13]);
-  write8(GYRO_OFFSET_Y_LSB_ADDR, calibData[14]);
-  write8(GYRO_OFFSET_Y_MSB_ADDR, calibData[15]);
-  write8(GYRO_OFFSET_Z_LSB_ADDR, calibData[16]);
-  write8(GYRO_OFFSET_Z_MSB_ADDR, calibData[17]);
-
-  write8(ACCEL_RADIUS_LSB_ADDR, calibData[18]);
-  write8(ACCEL_RADIUS_MSB_ADDR, calibData[19]);
-
-  write8(MAG_RADIUS_LSB_ADDR, calibData[20]);
-  write8(MAG_RADIUS_MSB_ADDR, calibData[21]);
-
-  setMode(lastMode);
+  (void)setSensorOffsetsChecked(calibData);
 }
 
 /*!
@@ -890,46 +1032,83 @@ void Adafruit_BNO055::setSensorOffsets(const uint8_t *calibData)
  *          gyro_offset_y  = gyroscrope offset y
  *          gyro_offset_z  = gyroscrope offset z
  */
-void Adafruit_BNO055::setSensorOffsets(
-    const adafruit_bno055_offsets_t &offsets_type)
+bool Adafruit_BNO055::setSensorOffsetsChecked(const adafruit_bno055_offsets_t &offsets_type)
 {
-  adafruit_bno055_opmode_t lastMode = _mode;
-  setMode(OPERATION_MODE_CONFIG);
-  delay(25);
+  const uint16_t accelOffsetX =
+      static_cast<uint16_t>(offsets_type.accel_offset_x);
+  const uint16_t accelOffsetY =
+      static_cast<uint16_t>(offsets_type.accel_offset_y);
+  const uint16_t accelOffsetZ =
+      static_cast<uint16_t>(offsets_type.accel_offset_z);
 
-  /* Note: Configuration will take place only when user writes to the last
-     byte of each config data pair (ex. ACCEL_OFFSET_Z_MSB_ADDR, etc.).
-     Therefore the last byte must be written whenever the user wants to
-     changes the configuration. */
+  const uint16_t magOffsetX =
+      static_cast<uint16_t>(offsets_type.mag_offset_x);
+  const uint16_t magOffsetY =
+      static_cast<uint16_t>(offsets_type.mag_offset_y);
+  const uint16_t magOffsetZ =
+      static_cast<uint16_t>(offsets_type.mag_offset_z);
 
-  write8(ACCEL_OFFSET_X_LSB_ADDR, (offsets_type.accel_offset_x) & 0x0FF);
-  write8(ACCEL_OFFSET_X_MSB_ADDR, (offsets_type.accel_offset_x >> 8) & 0x0FF);
-  write8(ACCEL_OFFSET_Y_LSB_ADDR, (offsets_type.accel_offset_y) & 0x0FF);
-  write8(ACCEL_OFFSET_Y_MSB_ADDR, (offsets_type.accel_offset_y >> 8) & 0x0FF);
-  write8(ACCEL_OFFSET_Z_LSB_ADDR, (offsets_type.accel_offset_z) & 0x0FF);
-  write8(ACCEL_OFFSET_Z_MSB_ADDR, (offsets_type.accel_offset_z >> 8) & 0x0FF);
+  const uint16_t gyroOffsetX =
+      static_cast<uint16_t>(offsets_type.gyro_offset_x);
+  const uint16_t gyroOffsetY =
+      static_cast<uint16_t>(offsets_type.gyro_offset_y);
+  const uint16_t gyroOffsetZ =
+      static_cast<uint16_t>(offsets_type.gyro_offset_z);
 
-  write8(MAG_OFFSET_X_LSB_ADDR, (offsets_type.mag_offset_x) & 0x0FF);
-  write8(MAG_OFFSET_X_MSB_ADDR, (offsets_type.mag_offset_x >> 8) & 0x0FF);
-  write8(MAG_OFFSET_Y_LSB_ADDR, (offsets_type.mag_offset_y) & 0x0FF);
-  write8(MAG_OFFSET_Y_MSB_ADDR, (offsets_type.mag_offset_y >> 8) & 0x0FF);
-  write8(MAG_OFFSET_Z_LSB_ADDR, (offsets_type.mag_offset_z) & 0x0FF);
-  write8(MAG_OFFSET_Z_MSB_ADDR, (offsets_type.mag_offset_z >> 8) & 0x0FF);
+  const uint16_t accelRadius =
+      static_cast<uint16_t>(offsets_type.accel_radius);
+  const uint16_t magRadius =
+      static_cast<uint16_t>(offsets_type.mag_radius);
 
-  write8(GYRO_OFFSET_X_LSB_ADDR, (offsets_type.gyro_offset_x) & 0x0FF);
-  write8(GYRO_OFFSET_X_MSB_ADDR, (offsets_type.gyro_offset_x >> 8) & 0x0FF);
-  write8(GYRO_OFFSET_Y_LSB_ADDR, (offsets_type.gyro_offset_y) & 0x0FF);
-  write8(GYRO_OFFSET_Y_MSB_ADDR, (offsets_type.gyro_offset_y >> 8) & 0x0FF);
-  write8(GYRO_OFFSET_Z_LSB_ADDR, (offsets_type.gyro_offset_z) & 0x0FF);
-  write8(GYRO_OFFSET_Z_MSB_ADDR, (offsets_type.gyro_offset_z >> 8) & 0x0FF);
+  const uint8_t calibrationData[NUM_BNO055_OFFSET_REGISTERS] = {
+      static_cast<uint8_t>(accelOffsetX & 0xFFU),
+      static_cast<uint8_t>((accelOffsetX >> 8) & 0xFFU),
+      static_cast<uint8_t>(accelOffsetY & 0xFFU),
+      static_cast<uint8_t>((accelOffsetY >> 8) & 0xFFU),
+      static_cast<uint8_t>(accelOffsetZ & 0xFFU),
+      static_cast<uint8_t>((accelOffsetZ >> 8) & 0xFFU),
 
-  write8(ACCEL_RADIUS_LSB_ADDR, (offsets_type.accel_radius) & 0x0FF);
-  write8(ACCEL_RADIUS_MSB_ADDR, (offsets_type.accel_radius >> 8) & 0x0FF);
+      static_cast<uint8_t>(magOffsetX & 0xFFU),
+      static_cast<uint8_t>((magOffsetX >> 8) & 0xFFU),
+      static_cast<uint8_t>(magOffsetY & 0xFFU),
+      static_cast<uint8_t>((magOffsetY >> 8) & 0xFFU),
+      static_cast<uint8_t>(magOffsetZ & 0xFFU),
+      static_cast<uint8_t>((magOffsetZ >> 8) & 0xFFU),
 
-  write8(MAG_RADIUS_LSB_ADDR, (offsets_type.mag_radius) & 0x0FF);
-  write8(MAG_RADIUS_MSB_ADDR, (offsets_type.mag_radius >> 8) & 0x0FF);
+      static_cast<uint8_t>(gyroOffsetX & 0xFFU),
+      static_cast<uint8_t>((gyroOffsetX >> 8) & 0xFFU),
+      static_cast<uint8_t>(gyroOffsetY & 0xFFU),
+      static_cast<uint8_t>((gyroOffsetY >> 8) & 0xFFU),
+      static_cast<uint8_t>(gyroOffsetZ & 0xFFU),
+      static_cast<uint8_t>((gyroOffsetZ >> 8) & 0xFFU),
 
-  setMode(lastMode);
+      static_cast<uint8_t>(accelRadius & 0xFFU),
+      static_cast<uint8_t>((accelRadius >> 8) & 0xFFU),
+
+      static_cast<uint8_t>(magRadius & 0xFFU),
+      static_cast<uint8_t>((magRadius >> 8) & 0xFFU)};
+
+  return setSensorOffsetsChecked(calibrationData);
+}
+
+/*!
+ *  @brief  Writes to the sensor's offset registers from an offset struct
+ *  @param  offsets_type
+ *          accel_offset_x = acceleration offset x
+ *          accel_offset_y = acceleration offset y
+ *          accel_offset_z = acceleration offset z
+ *
+ *          mag_offset_x   = magnetometer offset x
+ *          mag_offset_y   = magnetometer offset y
+ *          mag_offset_z   = magnetometer offset z
+ *
+ *          gyro_offset_x  = gyroscrope offset x
+ *          gyro_offset_y  = gyroscrope offset y
+ *          gyro_offset_z  = gyroscrope offset z
+ */
+void Adafruit_BNO055::setSensorOffsets(const adafruit_bno055_offsets_t &offsets_type)
+{
+  (void)setSensorOffsetsChecked(offsets_type);
 }
 
 /*!

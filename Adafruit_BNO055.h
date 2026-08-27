@@ -332,11 +332,13 @@ public:
    */
   bool begin(adafruit_bno055_opmode_t mode = OPERATION_MODE_NDOF, uint32_t resetTimeoutMs = 2000U);
   void setMode(adafruit_bno055_opmode_t mode);
+  bool setModeChecked(adafruit_bno055_opmode_t mode);
   adafruit_bno055_opmode_t getMode();
   void setAxisRemap(adafruit_bno055_axis_remap_config_t remapcode);
   void setAxisSign(adafruit_bno055_axis_remap_sign_t remapsign);
   void getRevInfo(adafruit_bno055_rev_info_t *);
   void setExtCrystalUse(boolean usextal);
+  bool setExtCrystalUseChecked(boolean usextal);
   void getSystemStatus(uint8_t *system_status, uint8_t *self_test_result,
                        uint8_t *system_error);
   bool getSystemStatusChecked(uint8_t *system_status, uint8_t *self_test_result,
@@ -366,6 +368,8 @@ public:
   bool getSensorOffsets(adafruit_bno055_offsets_t &offsets_type);
   void setSensorOffsets(const uint8_t *calibData);
   void setSensorOffsets(const adafruit_bno055_offsets_t &offsets_type);
+  bool setSensorOffsetsChecked(const uint8_t *calibData);
+  bool setSensorOffsetsChecked(const adafruit_bno055_offsets_t &offsets_type);
   bool isFullyCalibrated();
 
   /* Power managments functions */
