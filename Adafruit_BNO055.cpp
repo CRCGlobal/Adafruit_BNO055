@@ -44,7 +44,8 @@
  *          Wire object
  */
 Adafruit_BNO055::Adafruit_BNO055(int32_t sensorID, uint8_t address,
-                                 TwoWire *theWire) {
+                                 TwoWire *theWire)
+{
 // BNO055 clock stretches for 500us or more!
 #ifdef ESP8266
   theWire->setClockStretchLimit(1000); // Allow for 1000us of clock stretching
@@ -73,7 +74,8 @@ Adafruit_BNO055::Adafruit_BNO055(int32_t sensorID, uint8_t address,
  *            OPERATION_MODE_NDOF]
  *  @return true if process is successful
  */
-bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode) {
+bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode, uint32_t resetTimeoutMs)
+{
   // Start without a detection
   i2c_dev->begin(false);
 
@@ -84,8 +86,10 @@ bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode) {
 
   // can take 850 ms to boot!
   int timeout = 850; // in ms
-  while (timeout > 0) {
-    if (i2c_dev->begin()) {
+  while (timeout > 0)
+  {
+    if (i2c_dev->begin())
+    {
       break;
     }
     // wasnt detected... we'll retry!
@@ -97,10 +101,12 @@ bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode) {
 
   /* Make sure we have the right device */
   uint8_t id = read8(BNO055_CHIP_ID_ADDR);
-  if (id != BNO055_ID) {
+  if (id != BNO055_ID)
+  {
     delay(1000); // hold on for boot
     id = read8(BNO055_CHIP_ID_ADDR);
-    if (id != BNO055_ID) {
+    if (id != BNO055_ID)
+    {
       return false; // still not? ok bail
     }
   }
@@ -112,9 +118,19 @@ bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode) {
   write8(BNO055_SYS_TRIGGER_ADDR, 0x20);
   /* Delay increased to 30ms due to power issues https://tinyurl.com/y375z699 */
   delay(30);
-  while (read8(BNO055_CHIP_ID_ADDR) != BNO055_ID) {
+
+  const unsigned long resetStartedAt = millis();
+
+  while (read8(BNO055_CHIP_ID_ADDR) != BNO055_ID)
+  {
+    if (millis() - resetStartedAt >= resetTimeoutMs)
+    {
+      return false;
+    }
+
     delay(10);
   }
+
   delay(50);
 
   /* Set to normal power mode */
@@ -168,7 +184,8 @@ bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode) {
  *            OPERATION_MODE_NDOF_FMC_OFF,
  *            OPERATION_MODE_NDOF]
  */
-void Adafruit_BNO055::setMode(adafruit_bno055_opmode_t mode) {
+void Adafruit_BNO055::setMode(adafruit_bno055_opmode_t mode)
+{
   _mode = mode;
   write8(BNO055_OPR_MODE_ADDR, _mode);
   delay(30);
@@ -179,7 +196,8 @@ void Adafruit_BNO055::setMode(adafruit_bno055_opmode_t mode) {
  *  @return  operating_mode in integer which can be mapped in Section 3.3
  *           for example: a return of 12 (0X0C) => NDOF
  */
-adafruit_bno055_opmode_t Adafruit_BNO055::getMode() {
+adafruit_bno055_opmode_t Adafruit_BNO055::getMode()
+{
   return (adafruit_bno055_opmode_t)read8(BNO055_OPR_MODE_ADDR);
 }
 
@@ -197,7 +215,8 @@ adafruit_bno055_opmode_t Adafruit_BNO055::getMode() {
  *           REMAP_CONFIG_P7]
  */
 void Adafruit_BNO055::setAxisRemap(
-    adafruit_bno055_axis_remap_config_t remapcode) {
+    adafruit_bno055_axis_remap_config_t remapcode)
+{
   adafruit_bno055_opmode_t modeback = _mode;
 
   setMode(OPERATION_MODE_CONFIG);
@@ -222,7 +241,8 @@ void Adafruit_BNO055::setAxisRemap(
  *           REMAP_SIGN_P6
  *           REMAP_SIGN_P7]
  */
-void Adafruit_BNO055::setAxisSign(adafruit_bno055_axis_remap_sign_t remapsign) {
+void Adafruit_BNO055::setAxisSign(adafruit_bno055_axis_remap_sign_t remapsign)
+{
   adafruit_bno055_opmode_t modeback = _mode;
 
   setMode(OPERATION_MODE_CONFIG);
@@ -239,16 +259,20 @@ void Adafruit_BNO055::setAxisSign(adafruit_bno055_axis_remap_sign_t remapsign) {
  *  @param  usextal
  *          use external crystal boolean
  */
-void Adafruit_BNO055::setExtCrystalUse(boolean usextal) {
+void Adafruit_BNO055::setExtCrystalUse(boolean usextal)
+{
   adafruit_bno055_opmode_t modeback = _mode;
 
   /* Switch to config mode (just in case since this is the default) */
   setMode(OPERATION_MODE_CONFIG);
   delay(25);
   write8(BNO055_PAGE_ID_ADDR, 0);
-  if (usextal) {
+  if (usextal)
+  {
     write8(BNO055_SYS_TRIGGER_ADDR, 0x80);
-  } else {
+  }
+  else
+  {
     write8(BNO055_SYS_TRIGGER_ADDR, 0x00);
   }
   delay(10);
@@ -268,7 +292,8 @@ void Adafruit_BNO055::setExtCrystalUse(boolean usextal) {
  */
 void Adafruit_BNO055::getSystemStatus(uint8_t *system_status,
                                       uint8_t *self_test_result,
-                                      uint8_t *system_error) {
+                                      uint8_t *system_error)
+{
   (void)getSystemStatusChecked(system_status, self_test_result, system_error);
 }
 
@@ -284,7 +309,8 @@ void Adafruit_BNO055::getSystemStatus(uint8_t *system_status,
  */
 bool Adafruit_BNO055::getSystemStatusChecked(uint8_t *system_status,
                                              uint8_t *self_test_result,
-                                             uint8_t *system_error) {
+                                             uint8_t *system_error)
+{
   write8(BNO055_PAGE_ID_ADDR, 0);
 
   /* System Status (see section 4.3.58)
@@ -337,7 +363,8 @@ bool Adafruit_BNO055::getSystemStatusChecked(uint8_t *system_status,
   if (system_error != 0)
     success = read8(BNO055_SYS_ERR_ADDR, &systemErrorValue) && success;
 
-  if (success) {
+  if (success)
+  {
     if (system_status != 0)
       *system_status = systemStatusValue;
     if (self_test_result != 0)
@@ -355,7 +382,8 @@ bool Adafruit_BNO055::getSystemStatusChecked(uint8_t *system_status,
  *  @param  info
  *          revision info
  */
-void Adafruit_BNO055::getRevInfo(adafruit_bno055_rev_info_t *info) {
+void Adafruit_BNO055::getRevInfo(adafruit_bno055_rev_info_t *info)
+{
   uint8_t a, b;
 
   memset(info, 0, sizeof(adafruit_bno055_rev_info_t));
@@ -393,18 +421,23 @@ void Adafruit_BNO055::getRevInfo(adafruit_bno055_rev_info_t *info) {
  *          Current calibration status of Magnetometer, read-only
  */
 void Adafruit_BNO055::getCalibration(uint8_t *sys, uint8_t *gyro,
-                                     uint8_t *accel, uint8_t *mag) {
+                                     uint8_t *accel, uint8_t *mag)
+{
   uint8_t calData = read8(BNO055_CALIB_STAT_ADDR);
-  if (sys != NULL) {
+  if (sys != NULL)
+  {
     *sys = (calData >> 6) & 0x03;
   }
-  if (gyro != NULL) {
+  if (gyro != NULL)
+  {
     *gyro = (calData >> 4) & 0x03;
   }
-  if (accel != NULL) {
+  if (accel != NULL)
+  {
     *accel = (calData >> 2) & 0x03;
   }
-  if (mag != NULL) {
+  if (mag != NULL)
+  {
     *mag = calData & 0x03;
   }
 }
@@ -415,22 +448,28 @@ void Adafruit_BNO055::getCalibration(uint8_t *sys, uint8_t *gyro,
  *  @return true when the calibration register was read successfully
  */
 bool Adafruit_BNO055::getCalibrationChecked(uint8_t *sys, uint8_t *gyro,
-                                            uint8_t *accel, uint8_t *mag) {
+                                            uint8_t *accel, uint8_t *mag)
+{
   uint8_t calData = 0;
-  if (!read8(BNO055_CALIB_STAT_ADDR, &calData)) {
+  if (!read8(BNO055_CALIB_STAT_ADDR, &calData))
+  {
     return false;
   }
 
-  if (sys != NULL) {
+  if (sys != NULL)
+  {
     *sys = (calData >> 6) & 0x03;
   }
-  if (gyro != NULL) {
+  if (gyro != NULL)
+  {
     *gyro = (calData >> 4) & 0x03;
   }
-  if (accel != NULL) {
+  if (accel != NULL)
+  {
     *accel = (calData >> 2) & 0x03;
   }
-  if (mag != NULL) {
+  if (mag != NULL)
+  {
     *mag = calData & 0x03;
   }
 
@@ -441,7 +480,8 @@ bool Adafruit_BNO055::getCalibrationChecked(uint8_t *sys, uint8_t *gyro,
  *  @brief  Gets the temperature in degrees celsius
  *  @return temperature in degrees celsius
  */
-int8_t Adafruit_BNO055::getTemp() {
+int8_t Adafruit_BNO055::getTemp()
+{
   int8_t temp = (int8_t)(read8(BNO055_TEMP_ADDR));
   return temp;
 }
@@ -458,7 +498,8 @@ int8_t Adafruit_BNO055::getTemp() {
  *            VECTOR_GRAVITY]
  *  @return  vector from specified source
  */
-imu::Vector<3> Adafruit_BNO055::getVector(adafruit_vector_type_t vector_type) {
+imu::Vector<3> Adafruit_BNO055::getVector(adafruit_vector_type_t vector_type)
+{
   imu::Vector<3> xyz;
 
   (void)getVectorChecked(vector_type, &xyz);
@@ -480,7 +521,8 @@ imu::Vector<3> Adafruit_BNO055::getVector(adafruit_vector_type_t vector_type) {
  *  @return  true if the vector read is successful
  */
 bool Adafruit_BNO055::getVectorChecked(adafruit_vector_type_t vector_type,
-                                       imu::Vector<3> *vector) {
+                                       imu::Vector<3> *vector)
+{
   if (vector == NULL)
     return false;
 
@@ -503,7 +545,8 @@ bool Adafruit_BNO055::getVectorChecked(adafruit_vector_type_t vector_type,
    * Convert the value to an appropriate range (section 3.6.4)
    * and assign the value to the Vector type
    */
-  switch (vector_type) {
+  switch (vector_type)
+  {
   case VECTOR_MAGNETOMETER:
     /* 1uT = 16 LSB */
     xyz[0] = ((double)x) / 16.0;
@@ -550,7 +593,8 @@ bool Adafruit_BNO055::getVectorChecked(adafruit_vector_type_t vector_type,
  *  @brief  Gets a quaternion reading from the specified source
  *  @return quaternion reading
  */
-imu::Quaternion Adafruit_BNO055::getQuat() {
+imu::Quaternion Adafruit_BNO055::getQuat()
+{
   uint8_t buffer[8];
   memset(buffer, 0, 8);
 
@@ -580,7 +624,8 @@ imu::Quaternion Adafruit_BNO055::getQuat() {
  *  @param  sensor
  *          Sensor description
  */
-void Adafruit_BNO055::getSensor(sensor_t *sensor) {
+void Adafruit_BNO055::getSensor(sensor_t *sensor)
+{
   /* Clear the sensor_t object */
   memset(sensor, 0, sizeof(sensor_t));
 
@@ -602,7 +647,8 @@ void Adafruit_BNO055::getSensor(sensor_t *sensor) {
  *          Event description
  *  @return always returns true
  */
-bool Adafruit_BNO055::getEvent(sensors_event_t *event) {
+bool Adafruit_BNO055::getEvent(sensors_event_t *event)
+{
   /* Clear the event */
   memset(event, 0, sizeof(sensors_event_t));
 
@@ -629,7 +675,8 @@ bool Adafruit_BNO055::getEvent(sensors_event_t *event) {
  *  @return always returns true
  */
 bool Adafruit_BNO055::getEvent(sensors_event_t *event,
-                               adafruit_vector_type_t vec_type) {
+                               adafruit_vector_type_t vec_type)
+{
   /* Clear the event */
   memset(event, 0, sizeof(sensors_event_t));
 
@@ -639,42 +686,53 @@ bool Adafruit_BNO055::getEvent(sensors_event_t *event,
 
   // read the data according to vec_type
   imu::Vector<3> vec;
-  if (vec_type == Adafruit_BNO055::VECTOR_LINEARACCEL) {
+  if (vec_type == Adafruit_BNO055::VECTOR_LINEARACCEL)
+  {
     event->type = SENSOR_TYPE_LINEAR_ACCELERATION;
     vec = getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);
 
     event->acceleration.x = vec.x();
     event->acceleration.y = vec.y();
     event->acceleration.z = vec.z();
-  } else if (vec_type == Adafruit_BNO055::VECTOR_ACCELEROMETER) {
+  }
+  else if (vec_type == Adafruit_BNO055::VECTOR_ACCELEROMETER)
+  {
     event->type = SENSOR_TYPE_ACCELEROMETER;
     vec = getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
 
     event->acceleration.x = vec.x();
     event->acceleration.y = vec.y();
     event->acceleration.z = vec.z();
-  } else if (vec_type == Adafruit_BNO055::VECTOR_GRAVITY) {
+  }
+  else if (vec_type == Adafruit_BNO055::VECTOR_GRAVITY)
+  {
     event->type = SENSOR_TYPE_GRAVITY;
     vec = getVector(Adafruit_BNO055::VECTOR_GRAVITY);
 
     event->acceleration.x = vec.x();
     event->acceleration.y = vec.y();
     event->acceleration.z = vec.z();
-  } else if (vec_type == Adafruit_BNO055::VECTOR_EULER) {
+  }
+  else if (vec_type == Adafruit_BNO055::VECTOR_EULER)
+  {
     event->type = SENSOR_TYPE_ORIENTATION;
     vec = getVector(Adafruit_BNO055::VECTOR_EULER);
 
     event->orientation.x = vec.x();
     event->orientation.y = vec.y();
     event->orientation.z = vec.z();
-  } else if (vec_type == Adafruit_BNO055::VECTOR_GYROSCOPE) {
+  }
+  else if (vec_type == Adafruit_BNO055::VECTOR_GYROSCOPE)
+  {
     event->type = SENSOR_TYPE_GYROSCOPE;
     vec = getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
 
     event->gyro.x = vec.x() * SENSORS_DPS_TO_RADS;
     event->gyro.y = vec.y() * SENSORS_DPS_TO_RADS;
     event->gyro.z = vec.z() * SENSORS_DPS_TO_RADS;
-  } else if (vec_type == Adafruit_BNO055::VECTOR_MAGNETOMETER) {
+  }
+  else if (vec_type == Adafruit_BNO055::VECTOR_MAGNETOMETER)
+  {
     event->type = SENSOR_TYPE_MAGNETIC_FIELD;
     vec = getVector(Adafruit_BNO055::VECTOR_MAGNETOMETER);
 
@@ -692,8 +750,10 @@ bool Adafruit_BNO055::getEvent(sensors_event_t *event,
  *          Calibration offset (buffer size should be 22)
  *  @return true if read is successful
  */
-bool Adafruit_BNO055::getSensorOffsets(uint8_t *calibData) {
-  if (isFullyCalibrated()) {
+bool Adafruit_BNO055::getSensorOffsets(uint8_t *calibData)
+{
+  if (isFullyCalibrated())
+  {
     adafruit_bno055_opmode_t lastMode = _mode;
     setMode(OPERATION_MODE_CONFIG);
 
@@ -712,8 +772,10 @@ bool Adafruit_BNO055::getSensorOffsets(uint8_t *calibData) {
  *  @return true if read is successful
  */
 bool Adafruit_BNO055::getSensorOffsets(
-    adafruit_bno055_offsets_t &offsets_type) {
-  if (isFullyCalibrated()) {
+    adafruit_bno055_offsets_t &offsets_type)
+{
+  if (isFullyCalibrated())
+  {
     adafruit_bno055_opmode_t lastMode = _mode;
     setMode(OPERATION_MODE_CONFIG);
     delay(25);
@@ -771,7 +833,8 @@ bool Adafruit_BNO055::getSensorOffsets(
  *  @param  calibData
  *          calibration data
  */
-void Adafruit_BNO055::setSensorOffsets(const uint8_t *calibData) {
+void Adafruit_BNO055::setSensorOffsets(const uint8_t *calibData)
+{
   adafruit_bno055_opmode_t lastMode = _mode;
   setMode(OPERATION_MODE_CONFIG);
   delay(25);
@@ -828,7 +891,8 @@ void Adafruit_BNO055::setSensorOffsets(const uint8_t *calibData) {
  *          gyro_offset_z  = gyroscrope offset z
  */
 void Adafruit_BNO055::setSensorOffsets(
-    const adafruit_bno055_offsets_t &offsets_type) {
+    const adafruit_bno055_offsets_t &offsets_type)
+{
   adafruit_bno055_opmode_t lastMode = _mode;
   setMode(OPERATION_MODE_CONFIG);
   delay(25);
@@ -872,11 +936,13 @@ void Adafruit_BNO055::setSensorOffsets(
  *  @brief  Checks of all cal status values are set to 3 (fully calibrated)
  *  @return status of calibration
  */
-bool Adafruit_BNO055::isFullyCalibrated() {
+bool Adafruit_BNO055::isFullyCalibrated()
+{
   uint8_t system, gyro, accel, mag;
   getCalibration(&system, &gyro, &accel, &mag);
 
-  switch (_mode) {
+  switch (_mode)
+  {
   case OPERATION_MODE_ACCONLY:
     return (accel == 3);
   case OPERATION_MODE_MAGONLY:
@@ -900,7 +966,8 @@ bool Adafruit_BNO055::isFullyCalibrated() {
 /*!
  *  @brief  Enter Suspend mode (i.e., sleep)
  */
-void Adafruit_BNO055::enterSuspendMode() {
+void Adafruit_BNO055::enterSuspendMode()
+{
   adafruit_bno055_opmode_t modeback = _mode;
 
   /* Switch to config mode (just in case since this is the default) */
@@ -915,7 +982,8 @@ void Adafruit_BNO055::enterSuspendMode() {
 /*!
  *  @brief  Enter Normal mode (i.e., wake)
  */
-void Adafruit_BNO055::enterNormalMode() {
+void Adafruit_BNO055::enterNormalMode()
+{
   adafruit_bno055_opmode_t modeback = _mode;
 
   /* Switch to config mode (just in case since this is the default) */
@@ -931,14 +999,16 @@ void Adafruit_BNO055::enterNormalMode() {
  *  @brief  Gets the last failed I2C transaction observed by this driver
  */
 Adafruit_BNO055::adafruit_bno055_i2c_failure_t
-Adafruit_BNO055::getLastI2cFailure() const {
+Adafruit_BNO055::getLastI2cFailure() const
+{
   return last_i2c_failure;
 }
 
 /*!
  *  @brief  Clears the last failed I2C transaction recorded by this driver
  */
-void Adafruit_BNO055::clearLastI2cFailure() {
+void Adafruit_BNO055::clearLastI2cFailure()
+{
   last_i2c_failure.failed = false;
   last_i2c_failure.operation = I2C_OPERATION_NONE;
   last_i2c_failure.reg = 0;
@@ -950,14 +1020,16 @@ void Adafruit_BNO055::clearLastI2cFailure() {
  *  @brief  Gets I2C transaction diagnostics observed by this driver
  */
 Adafruit_BNO055::adafruit_bno055_i2c_diagnostics_t
-Adafruit_BNO055::getI2cDiagnostics() const {
+Adafruit_BNO055::getI2cDiagnostics() const
+{
   return i2c_diagnostics;
 }
 
 /*!
  *  @brief  Clears I2C transaction diagnostics observed by this driver
  */
-void Adafruit_BNO055::clearI2cDiagnostics() {
+void Adafruit_BNO055::clearI2cDiagnostics()
+{
   i2c_diagnostics.readFailures = 0;
   i2c_diagnostics.writeFailures = 0;
   i2c_diagnostics.consecutiveFailures = 0;
@@ -972,7 +1044,8 @@ void Adafruit_BNO055::clearI2cDiagnostics() {
  */
 void Adafruit_BNO055::recordI2cFailure(
     adafruit_bno055_i2c_operation_t operation, adafruit_bno055_reg_t reg,
-    uint8_t length, uint32_t transactionMicros) {
+    uint8_t length, uint32_t transactionMicros)
+{
   last_i2c_failure.failed = true;
   last_i2c_failure.operation = operation;
   last_i2c_failure.reg = (uint8_t)reg;
@@ -985,7 +1058,8 @@ void Adafruit_BNO055::recordI2cFailure(
  */
 void Adafruit_BNO055::recordI2cTransaction(
     adafruit_bno055_i2c_operation_t operation, adafruit_bno055_reg_t reg,
-    uint8_t length, bool success, uint32_t transactionMicros) {
+    uint8_t length, bool success, uint32_t transactionMicros)
+{
   static const uint32_t BNO055_SLOW_I2C_TRANSACTION_MICROS = 10000;
 
   if (transactionMicros > i2c_diagnostics.maxTransactionMicros)
@@ -994,7 +1068,8 @@ void Adafruit_BNO055::recordI2cTransaction(
   if (transactionMicros > BNO055_SLOW_I2C_TRANSACTION_MICROS)
     i2c_diagnostics.slowTransactions++;
 
-  if (success) {
+  if (success)
+  {
     if (i2c_diagnostics.consecutiveFailures > 0)
       i2c_diagnostics.recoveredTransactions++;
 
@@ -1020,7 +1095,8 @@ void Adafruit_BNO055::recordI2cTransaction(
 /*!
  *  @brief  Writes an 8 bit value over I2C
  */
-bool Adafruit_BNO055::write8(adafruit_bno055_reg_t reg, byte value) {
+bool Adafruit_BNO055::write8(adafruit_bno055_reg_t reg, byte value)
+{
   uint8_t buffer[2] = {(uint8_t)reg, (uint8_t)value};
   uint32_t startMicros = micros();
   bool success = i2c_dev->write(buffer, 2);
@@ -1035,7 +1111,8 @@ bool Adafruit_BNO055::write8(adafruit_bno055_reg_t reg, byte value) {
 /*!
  *  @brief  Reads an 8 bit value over I2C
  */
-bool Adafruit_BNO055::read8(adafruit_bno055_reg_t reg, byte *value) {
+bool Adafruit_BNO055::read8(adafruit_bno055_reg_t reg, byte *value)
+{
   if (value == NULL)
     return false;
 
@@ -1056,7 +1133,8 @@ bool Adafruit_BNO055::read8(adafruit_bno055_reg_t reg, byte *value) {
 /*!
  *  @brief  Reads an 8 bit value over I2C
  */
-byte Adafruit_BNO055::read8(adafruit_bno055_reg_t reg) {
+byte Adafruit_BNO055::read8(adafruit_bno055_reg_t reg)
+{
   byte value = 0;
   (void)read8(reg, &value);
   return value;
@@ -1066,7 +1144,8 @@ byte Adafruit_BNO055::read8(adafruit_bno055_reg_t reg) {
  *  @brief  Reads the specified number of bytes over I2C
  */
 bool Adafruit_BNO055::readLen(adafruit_bno055_reg_t reg, byte *buffer,
-                              uint8_t len) {
+                              uint8_t len)
+{
   uint8_t reg_buf[1] = {(uint8_t)reg};
   uint32_t startMicros = micros();
   bool success = i2c_dev->write_then_read(reg_buf, 1, buffer, len);
