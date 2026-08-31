@@ -74,9 +74,7 @@ Adafruit_BNO055::Adafruit_BNO055(int32_t sensorID, uint8_t address,
  *            OPERATION_MODE_NDOF]
  *  @return true if process is successful
  */
-bool Adafruit_BNO055::begin(
-    adafruit_bno055_opmode_t mode,
-    uint32_t resetTimeoutMs)
+bool Adafruit_BNO055::begin(adafruit_bno055_opmode_t mode, uint32_t resetTimeoutMs, uint32_t startupTimeoutMs)
 {
   // Start without a detection.
   i2c_dev->begin(false);
@@ -106,26 +104,25 @@ bool Adafruit_BNO055::begin(
   }
 
   uint8_t id = 0;
+  bool chipDetected = false;
+  const unsigned long startupStartedAt = millis();
 
-  // Make sure this is a BNO055.
-  if (!read8(BNO055_CHIP_ID_ADDR, &id))
+  // A BNO055 can NACK chip-ID reads while it is completing power-on startup.
+  // Retry checked reads only until the caller-configured startup deadline.
+  do
+  {
+    if (read8(BNO055_CHIP_ID_ADDR, &id) && id == BNO055_ID)
+    {
+      chipDetected = true;
+      break;
+    }
+
+    delay(10);
+  } while (millis() - startupStartedAt < startupTimeoutMs);
+
+  if (!chipDetected)
   {
     return false;
-  }
-
-  if (id != BNO055_ID)
-  {
-    delay(1000);
-
-    if (!read8(BNO055_CHIP_ID_ADDR, &id))
-    {
-      return false;
-    }
-
-    if (id != BNO055_ID)
-    {
-      return false;
-    }
   }
 
   // Enter configuration mode before resetting/configuring the device.
@@ -142,26 +139,25 @@ bool Adafruit_BNO055::begin(
 
   delay(30);
 
+  bool resetComplete = false;
   const unsigned long resetStartedAt = millis();
 
-  while (true)
+  // The device can also NACK reads while it reboots after a software reset.
+  // Retry checked reads only until the caller-configured reset deadline.
+  do
   {
-    if (!read8(BNO055_CHIP_ID_ADDR, &id))
+    if (read8(BNO055_CHIP_ID_ADDR, &id) && id == BNO055_ID)
     {
-      return false;
-    }
-
-    if (id == BNO055_ID)
-    {
+      resetComplete = true;
       break;
     }
 
-    if (millis() - resetStartedAt >= resetTimeoutMs)
-    {
-      return false;
-    }
-
     delay(10);
+  } while (millis() - resetStartedAt < resetTimeoutMs);
+
+  if (!resetComplete)
+  {
+    return false;
   }
 
   delay(50);

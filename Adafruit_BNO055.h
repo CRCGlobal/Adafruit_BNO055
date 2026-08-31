@@ -327,10 +327,12 @@ public:
    * @param mode Operating mode to enable after initialization.
    * @param resetTimeoutMs Maximum time, in milliseconds, to wait for the
    *        BNO055 to respond after a software reset.
+   * @param startupTimeoutMs Maximum time, in milliseconds, to wait for the
+   *        BNO055 chip ID during initial power-on detection.
    * @return true if initialization succeeds; false if the sensor is not
-   *         detected or does not respond before the reset timeout.
+   *         detected or does not respond before either timeout expires.
    */
-  bool begin(adafruit_bno055_opmode_t mode = OPERATION_MODE_NDOF, uint32_t resetTimeoutMs = 2000U);
+  bool begin(adafruit_bno055_opmode_t mode = OPERATION_MODE_NDOF, uint32_t resetTimeoutMs = 2000U, uint32_t startupTimeoutMs = 3000U);
   void setMode(adafruit_bno055_opmode_t mode);
   bool setModeChecked(adafruit_bno055_opmode_t mode);
   adafruit_bno055_opmode_t getMode();
